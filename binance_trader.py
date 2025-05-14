@@ -395,3 +395,4 @@ if __name__ == "__main__":
     app = TradingApp(root)
     root.mainloop()
 
+
