@@ -250,7 +250,7 @@ class TradingApp:
                         self.log(f"Corr_coef% для : {corr_coef:.0f}%")
                         self.log(f"Filtr% для : {float(self.filter_corr.get()):.0f}%")
                         corr_ok = corr_coef <= float(self.filter_corr.get())
-                        self.log(f"{sym} | Corr%: {corr_coef:.0f} <= {float(self.filter_corr.get())} → {'✅ OK' if corr_ok else '❌ No'}")
+                        #self.log(f"{sym} | Corr%: {corr_coef:.0f} <= {float(self.filter_corr.get())} → {'✅ OK' if corr_ok else '❌ No'}")
                 if (ch >= self.filter_delta.get() and
                     vol >= self.parse_kmb(self.filter_volume.get()) and
                     volat >= self.filter_volatility.get() and
