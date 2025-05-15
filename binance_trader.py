@@ -246,7 +246,7 @@ class TradingApp:
                         kl2 = self.client.futures_klines(symbol="BTCUSDT", interval='1h', limit=50)
                         df1 = pd.DataFrame(kl1, columns=["t","o","h","l","c","v",*range(6)])
                         df2 = pd.DataFrame(kl2, columns=["t","o","h","l","c","v",*range(6)])
-                        corr_percent = df1['c'].astype(float).corr(df2['c'].astype(float)) * 100
+                        corr_coef = df1['c'].astype(float).corr(df2['c'].astype(float)) * 100
                         corr_percent = corr_coef * 100
                         corr_ok = corr_percent <= float(self.filter_corr.get()) 
                 if (ch >= self.filter_delta.get() and
