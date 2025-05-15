@@ -224,53 +224,52 @@ class TradingApp:
         if not getattr(self, 'running_search', False):
             threading.Thread(target=self.search_and_update, daemon=True).start()
 
-def search_and_update(self):
-    self.log("🔍 Поиск монет запущен...")  # ✅ Начало поиска
-    self.running_search = True
-    self.found_coins.clear()
-    for w in self.sel_frame.winfo_children(): w.destroy()
-    self.symbol_listbox.delete(0, 'end')
-
-    try:
-        if not self.client: self.init_client()
-        tickers = self.client.futures_ticker()
+    def search_and_update(self):
+        self.running_search = True; self.found_coins.clear()
+        for w in self.sel_frame.winfo_children(): w.destroy()
+        self.symbol_listbox.delete(0, 'end'); self.log("🔍 Searching...", "info")
+        try:
+            if not self.client: self.init_client()
+            tickers = self.client.futures_ticker()
+            btc_kl = self.client.futures_klines(symbol="BTCUSDT", interval="1h", limit=50)
+            df_btc = pd.DataFrame(btc_kl, columns=["t","o","h","l","c","v",*range(6)])
+            df_btc["c"] = df_btc["c"].astype(float)
         for t in tickers:
-            sym = t['symbol']
-            if not sym.endswith("USDT"): continue
-            ch = abs(float(t['priceChangePercent']))
-            vol = float(t['quoteVolume'])
-            high = float(t['highPrice']); low = float(t['lowPrice']); op = float(t['openPrice'])
-            volat = abs(high - low) / op * 100
-            trades = int(t.get('count', 0))
-            corr_ok = True
-            if self.filter_corr_enabled.get():
-                kl1 = self.client.futures_klines(symbol=sym, interval='1h', limit=50)
-                kl2 = self.client.futures_klines(symbol="BTCUSDT", interval='1h', limit=50)
-                df1 = pd.DataFrame(kl1, columns=["t","o","h","l","c","v",*range(6)])
-                df2 = pd.DataFrame(kl2, columns=["t","o","h","l","c","v",*range(6)])
-                corr_coef = df1['c'].astype(float).corr(df2['c'].astype(float)) * 100
-                corr_ok = corr_coef <= float(self.filter_corr.get())
-            if (ch >= self.filter_delta.get() and
-                vol >= self.parse_kmb(self.filter_volume.get()) and
-                volat >= self.filter_volatility.get() and
-                trades >= self.parse_kmb(self.filter_trades.get()) and
-                corr_ok):
-                self.found_coins.append(sym)
-
-        if not self.found_coins:
-            self.log("⚠️ Монеты, соответствующие фильтрам, не найдены.", "info")
-        else:
-            for sym in self.found_coins:
-                self.symbol_listbox.insert('end', sym)
-                var = tk.BooleanVar(); self.checkbox_vars[sym] = var
-                tk.Checkbutton(self.sel_frame, text=sym, variable=var).pack(anchor='w')
-
-    except Exception as e:
-        self.log(f"Search error: {e}", "error")
-
-    finally:
-        self.running_search = False
-        self.log("✅ Поиск завершён.")  # ✅ Конец поиска
+                sym = t['symbol']
+                if not sym.endswith("USDT"): continue
+                ch = abs(float(t['priceChangePercent']))
+                vol = float(t['quoteVolume'])
+                high = float(t['highPrice']); low = float(t['lowPrice']); op = float(t['openPrice'])
+                volat = abs(high - low) / op * 100
+                trades = int(t.get('count', 0))
+                corr_ok = True
+                if self.filter_corr_enabled.get():
+                        # always use percent-based correlation filter
+                        kl1 = self.client.futures_klines(symbol=sym, interval='1h', limit=50)
+                        kl2 = self.client.futures_klines(symbol="BTCUSDT", interval='1h', limit=50)
+                        import time
+        df1 = pd.DataFrame(kl1, columns=["t","o","h","l","c","v",*range(6)])
+        time.sleep(0.1)
+                        df2 = pd.DataFrame(kl2, columns=["t","o","h","l","c","v",*range(6)])
+                        corr_coef = df1['c'].astype(float).corr(df2['c'].astype(float))*100
+                        corr_ok = corr_coef <= float(self.filter_corr.get())
+                if (ch >= self.filter_delta.get() and
+                    vol >= self.parse_kmb(self.filter_volume.get()) and
+                    volat >= self.filter_volatility.get() and
+                    trades >= self.parse_kmb(self.filter_trades.get()) and
+                    corr_ok):
+                    self.found_coins.append(sym)
+            if not self.found_coins:
+                self.log("⚠️ No coins found matching filters.", "info")
+            else:
+                for sym in self.found_coins:
+                    self.symbol_listbox.insert('end', sym)
+                    var = tk.BooleanVar(); self.checkbox_vars[sym] = var
+                    tk.Checkbutton(self.sel_frame, text=sym, variable=var).pack(anchor='w')
+        except Exception as e:
+            self.log(f"Search error: {e}", "error")
+        finally:
+            self.running_search = False
 
     def on_symbol_select(self):
         sel = self.symbol_listbox.curselection()
@@ -287,15 +286,17 @@ def search_and_update(self):
             # correlation display (1h)
             kl1 = self.client.futures_klines(symbol=sym, interval='1h', limit=50)
             kl2 = self.client.futures_klines(symbol="BTCUSDT", interval='1h', limit=50)
-            df1 = pd.DataFrame(kl1, columns=["t","o","h","l","c","v",*range(6)])
+            import time
+        df1 = pd.DataFrame(kl1, columns=["t","o","h","l","c","v",*range(6)])
+        time.sleep(0.1)
             df2 = pd.DataFrame(kl2, columns=["t","o","h","l","c","v",*range(6)])
             corr_val = df1['c'].astype(float).corr(df2['c'].astype(float)) * 100
             self.info_vars["CorrBTC"].set(f"{corr_val:.0f}%")
         except:
             self.info_vars["CorrBTC"].set("N/A")
+        
             corr_percent = df1['c'].astype(float).corr(df2['c'].astype(float)) * 100
             self.info_vars["CorrBTC"].set(f"{corr_percent:.0f}%")
-            self.plot_chart()  # ✅ Добавить эту строку
          
 
     def start_trading(self):
