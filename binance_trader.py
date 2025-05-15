@@ -246,9 +246,11 @@ class TradingApp:
                         kl2 = self.client.futures_klines(symbol="BTCUSDT", interval='1h', limit=50)
                         df1 = pd.DataFrame(kl1, columns=["t","o","h","l","c","v",*range(6)])
                         df2 = pd.DataFrame(kl2, columns=["t","o","h","l","c","v",*range(6)])
-                        corr_coef = df1['c'].astype(float).corr(df2['c'].astype(float)) * 100
-                        corr_percent = corr_coef * 100
-                        corr_ok = corr_percent <= float(self.filter_corr.get()) 
+                        corr_coef = df1['c'].astype(float).corr(df2['c'].astype(float))*100
+                        self.log(f"Corr_coef% для : {corr_coef:.0f}%")
+                        self.log(f"Filtr% для : {float(self.filter_corr.get()):.0f}%")
+                        corr_ok = corr_coef <= float(self.filter_corr.get())
+                        self.log(f"{sym} | Corr%: {corr_coef:.0f} <= {float(self.filter_corr.get())} → {'✅ OK' if corr_ok else '❌ No'}")
                 if (ch >= self.filter_delta.get() and
                     vol >= self.parse_kmb(self.filter_volume.get()) and
                     volat >= self.filter_volatility.get() and
@@ -285,7 +287,7 @@ class TradingApp:
             df1 = pd.DataFrame(kl1, columns=["t","o","h","l","c","v",*range(6)])
             df2 = pd.DataFrame(kl2, columns=["t","o","h","l","c","v",*range(6)])
             corr_val = df1['c'].astype(float).corr(df2['c'].astype(float)) * 100
-            self.info_vars["CorrBTC"].set(f"{corr_val:.2f}%")
+            self.info_vars["CorrBTC"].set(f"{corr_val:.0f}%")
         except:
             self.info_vars["CorrBTC"].set("N/A")
         
