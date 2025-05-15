@@ -14,6 +14,7 @@ try:
     import mplfinance as mpf
 except ImportError:
     mpf = None
+    mpf = None
 
 CONFIG_FILE = "trading_config.json"
 
@@ -208,16 +209,23 @@ class TradingApp:
             token = self.telegram_token.get(); cid = self.telegram_chat_id.get()
             requests.get(f"https://api.telegram.org/bot{token}/sendMessage?chat_id={cid}&text=Bot+Started")
             self.log("✅ Telegram test sent", "success")
-        except Exception as e:
+
             self.log(f"Telegram error: {e}", "error")
 
-    def parse_kmb(self, s): return float(s.replace('K','e3').replace('M','e6').replace('B','e9'))
+    def parse_kmb(self, s):
+        try:
+            return float(s.replace('K','e3').replace('M','e6').replace('B','e9'))
+        except:
+            return 0.0
     def format_kmb_val(self, v):
-        try: v=float(v)
-        except: return str(v)
-        if v>=1e9: return f"{v/1e9:.2f}B"
-        if v>=1e6: return f"{v/1e6:.2f}M"
-        if v>=1e3: return f"{v/1e3:.2f}K"
+        try:
+            v = float(v)
+            if v >= 1e9: return f"{v/1e9:.2f}B"
+            if v >= 1e6: return f"{v/1e6:.2f}M"
+            if v >= 1e3: return f"{v/1e3:.2f}K"
+            return str(round(v))
+        except:
+            return str(v)
         return f"{v:.2f}"
 
     def refresh(self):
@@ -231,10 +239,7 @@ class TradingApp:
         try:
             if not self.client: self.init_client()
             tickers = self.client.futures_ticker()
-            btc_kl = self.client.futures_klines(symbol="BTCUSDT", interval="1h", limit=50)
-            df_btc = pd.DataFrame(btc_kl, columns=["t","o","h","l","c","v",*range(6)])
-            df_btc["c"] = df_btc["c"].astype(float)
-        for t in tickers:
+            for t in tickers:
                 sym = t['symbol']
                 if not sym.endswith("USDT"): continue
                 ch = abs(float(t['priceChangePercent']))
@@ -247,12 +252,13 @@ class TradingApp:
                         # always use percent-based correlation filter
                         kl1 = self.client.futures_klines(symbol=sym, interval='1h', limit=50)
                         kl2 = self.client.futures_klines(symbol="BTCUSDT", interval='1h', limit=50)
-                        import time
-        df1 = pd.DataFrame(kl1, columns=["t","o","h","l","c","v",*range(6)])
-        time.sleep(0.1)
+                        df1 = pd.DataFrame(kl1, columns=["t","o","h","l","c","v",*range(6)])
                         df2 = pd.DataFrame(kl2, columns=["t","o","h","l","c","v",*range(6)])
                         corr_coef = df1['c'].astype(float).corr(df2['c'].astype(float))*100
+                        self.log(f"Corr_coef% для : {corr_coef:.0f}%")
+                        self.log(f"Filtr% для : {float(self.filter_corr.get()):.0f}%")
                         corr_ok = corr_coef <= float(self.filter_corr.get())
+                        #self.log(f"{sym} | Corr%: {corr_coef:.0f} <= {float(self.filter_corr.get())} → {'✅ OK' if corr_ok else '❌ No'}")
                 if (ch >= self.filter_delta.get() and
                     vol >= self.parse_kmb(self.filter_volume.get()) and
                     volat >= self.filter_volatility.get() and
@@ -266,9 +272,14 @@ class TradingApp:
                     self.symbol_listbox.insert('end', sym)
                     var = tk.BooleanVar(); self.checkbox_vars[sym] = var
                     tk.Checkbutton(self.sel_frame, text=sym, variable=var).pack(anchor='w')
+
+            self.log(f"Search error: {e}", "error")
+
         except Exception as e:
             self.log(f"Search error: {e}", "error")
         finally:
+            self.running_search = False
+            self.log("✅ Поиск завершён.")
             self.running_search = False
 
     def on_symbol_select(self):
@@ -286,13 +297,11 @@ class TradingApp:
             # correlation display (1h)
             kl1 = self.client.futures_klines(symbol=sym, interval='1h', limit=50)
             kl2 = self.client.futures_klines(symbol="BTCUSDT", interval='1h', limit=50)
-            import time
-        df1 = pd.DataFrame(kl1, columns=["t","o","h","l","c","v",*range(6)])
-        time.sleep(0.1)
+            df1 = pd.DataFrame(kl1, columns=["t","o","h","l","c","v",*range(6)])
             df2 = pd.DataFrame(kl2, columns=["t","o","h","l","c","v",*range(6)])
             corr_val = df1['c'].astype(float).corr(df2['c'].astype(float)) * 100
             self.info_vars["CorrBTC"].set(f"{corr_val:.0f}%")
-        except:
+
             self.info_vars["CorrBTC"].set("N/A")
         
             corr_percent = df1['c'].astype(float).corr(df2['c'].astype(float)) * 100
@@ -358,7 +367,7 @@ class TradingApp:
                     self.ax.scatter(df.index[-1], o.get('price'), marker=m)
             self.canvas.draw()
             self.root.after(5000, self.plot_chart)
-        except Exception as e:
+
             self.log(f"Chart error: {e}", "error")
 
     def save_config(self):
@@ -390,7 +399,7 @@ class TradingApp:
                 self.filter_corr.set(cfg.get('filter_corr',70.0))
                 self.filter_corr_enabled.set(cfg.get('filter_corr_enabled',False))
                 self.timeframe.set(cfg.get('timeframe','5m'))
-            except Exception as e:
+
                 self.log(f"Config load error: {e}", "error")
 
     def on_close(self):
@@ -401,5 +410,3 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = TradingApp(root)
     root.mainloop()
-
-
