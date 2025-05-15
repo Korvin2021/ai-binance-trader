@@ -247,7 +247,8 @@ class TradingApp:
                         df1 = pd.DataFrame(kl1, columns=["t","o","h","l","c","v",*range(6)])
                         df2 = pd.DataFrame(kl2, columns=["t","o","h","l","c","v",*range(6)])
                         corr_percent = df1['c'].astype(float).corr(df2['c'].astype(float)) * 100
-                        corr_ok = corr_percent <= self.filter_corr.get()
+                        corr_percent = corr_coef * 100
+                        corr_ok = corr_percent <= float(self.filter_corr.get()) 
                 if (ch >= self.filter_delta.get() and
                     vol >= self.parse_kmb(self.filter_volume.get()) and
                     volat >= self.filter_volatility.get() and
@@ -289,7 +290,7 @@ class TradingApp:
             self.info_vars["CorrBTC"].set("N/A")
         
             corr_percent = df1['c'].astype(float).corr(df2['c'].astype(float)) * 100
-            self.info_vars["CorrBTC"].set(f"{corr_percent:.2f}%")
+            self.info_vars["CorrBTC"].set(f"{corr_percent:.0f}%")
          
 
     def start_trading(self):
