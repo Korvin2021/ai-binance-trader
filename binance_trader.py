@@ -8,7 +8,7 @@ import requests
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from binance.client import Client
-
+# test comment
 # Optional candlestick plotting
 try:
     import mplfinance as mpf
