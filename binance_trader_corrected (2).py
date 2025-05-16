@@ -17,7 +17,6 @@ except ImportError:
 CONFIG_FILE = "trading_config.json"
 CACHE_INTERVAL_MS = 3600 * 1000  # 1 hour in milliseconds
 
-
 class TradingApp:
     def __init__(self, root):
         self.root = root
@@ -90,12 +89,8 @@ class TradingApp:
         top.pack(fill="x", pady=5)
         tk.Label(top, text="Status:").pack(side="left", padx=5)
         tk.Label(top, textvariable=self.bot_status).pack(side="left")
-        tk.Button(top, text="Start", command=self.start_trading).pack(
-            side="left", padx=5
-        )
-        tk.Button(top, text="Pause", command=self.pause_trading).pack(
-            side="left", padx=5
-        )
+        tk.Button(top, text="Start", command=self.start_trading).pack(side="left", padx=5)
+        tk.Button(top, text="Pause", command=self.pause_trading).pack(side="left", padx=5)
         tk.Button(top, text="Stop", command=self.stop_trading).pack(side="left", padx=5)
 
         # API & Telegram config
@@ -110,27 +105,17 @@ class TradingApp:
             row = tk.Frame(api_frame)
             row.pack(fill="x", pady=2)
             tk.Label(row, text=lbl, width=20, anchor="e").pack(side="left")
-            tk.Entry(row, textvariable=var, show="*" if hide else "", width=40).pack(
-                side="left"
-            )
+            tk.Entry(row, textvariable=var, show="*" if hide else "", width=40).pack(side="left")
 
         # Mode, timeframe, TP/SL
         mode = tk.Frame(self.root)
         mode.pack(fill="x", padx=5)
         tk.Label(mode, text="Mode:").pack(side="left", padx=5)
-        ttk.Combobox(
-            mode,
-            textvariable=self.trade_mode,
-            values=["Тестовая торговля", "Реальная торговля"],
-            width=20,
-        ).pack(side="left")
+        ttk.Combobox(mode, textvariable=self.trade_mode,
+                     values=["Тестовая торговля", "Реальная торговля"], width=20).pack(side="left")
         tk.Label(mode, text="TF:").pack(side="left", padx=5)
-        ttk.Combobox(
-            mode,
-            textvariable=self.timeframe,
-            values=["1m", "5m", "15m", "1h", "4h", "1d"],
-            width=6,
-        ).pack(side="left")
+        ttk.Combobox(mode, textvariable=self.timeframe,
+                     values=["1m", "5m", "15m", "1h", "4h", "1d"], width=6).pack(side="left")
         tk.Label(mode, text="TP %:").pack(side="left", padx=5)
         tk.Entry(mode, textvariable=self.tp_pct, width=6).pack(side="left")
         tk.Label(mode, text="SL %:").pack(side="left", padx=5)
@@ -148,9 +133,7 @@ class TradingApp:
         ]:
             tk.Label(filt, text=text).pack(side="left", padx=5)
             tk.Entry(filt, textvariable=var, width=w).pack(side="left")
-        tk.Checkbutton(filt, text="Use Corr", variable=self.filter_corr_enabled).pack(
-            side="left", padx=5
-        )
+        tk.Checkbutton(filt, text="Use Corr", variable=self.filter_corr_enabled).pack(side="left", padx=5)
         tk.Button(filt, text="Search", command=self.refresh).pack(side="left", padx=10)
 
         # Found Coins List
@@ -170,12 +153,7 @@ class TradingApp:
         vsb.pack(side="right", fill="y")
         self.sel_canvas.pack(side="left", fill="both", expand=True)
         self.sel_canvas.create_window((0, 0), window=self.sel_frame, anchor="nw")
-        self.sel_frame.bind(
-            "<Configure>",
-            lambda e: self.sel_canvas.configure(
-                scrollregion=self.sel_canvas.bbox("all")
-            ),
-        )
+        self.sel_frame.bind("<Configure>", lambda e: self.sel_canvas.configure(scrollregion=self.sel_canvas.bbox("all")))
 
         # Summary Panel
         summ = tk.LabelFrame(self.root, text="Результаты торговли", padx=5, pady=5)
@@ -209,12 +187,7 @@ class TradingApp:
         vsb2.pack(side="right", fill="y")
         self.pos_canvas.pack(side="left", fill="both", expand=True)
         self.pos_canvas.create_window((0, 0), window=self.pos_frame, anchor="nw")
-        self.pos_frame.bind(
-            "<Configure>",
-            lambda e: self.pos_canvas.configure(
-                scrollregion=self.pos_canvas.bbox("all")
-            ),
-        )
+        self.pos_frame.bind("<Configure>", lambda e: self.pos_canvas.configure(scrollregion=self.pos_canvas.bbox("all")))
         logf = tk.LabelFrame(bottom, text="Logs", padx=5, pady=5)
         logf.pack(fill="both", expand=True)
         self.log_text = scrolledtext.ScrolledText(logf, height=10)
@@ -234,7 +207,7 @@ class TradingApp:
             cid = self.telegram_chat_id.get()
             resp = requests.get(
                 f"https://api.telegram.org/bot{token}/sendMessage",
-                params={"chat_id": cid, "text": "Bot Started"},
+                params={"chat_id": cid, "text": "Bot Started"}
             )
             if resp.status_code == 200:
                 self.log("✅ Telegram test sent", "success")
@@ -261,7 +234,7 @@ class TradingApp:
 
     def parse_kmb(self, s):
         try:
-            return float(s.replace("K", "e3").replace("M", "e6").replace("B", "e9"))
+            return float(s.replace('K','e3').replace('M','e6').replace('B','e9'))
         except Exception as e:
             self.log(f"[parse_kmb] Некорректное значение: {s} → {e}", "error")
             return 0.0
@@ -280,72 +253,52 @@ class TradingApp:
             return str(v)
 
     def refresh(self):
-        if not getattr(self, "running_search", False):
+        if not getattr(self, 'running_search', False):
             threading.Thread(target=self.search_and_update, daemon=True).start()
 
     def search_and_update(self):
         """
         Search coins and apply filters using cached BTC data for correlation.
         """
-        self.log("🔍 Поиск монет начался", "info")
+        self.log('🔍 Поиск монет начался', 'info')
         self.running_search = True
         self.found_coins.clear()
         for w in self.sel_frame.winfo_children():
             w.destroy()
-        self.symbol_listbox.delete(0, "end")
+        self.symbol_listbox.delete(0, 'end')
 
         try:
             if not self.client:
                 self.init_client()
             tickers = self.client.futures_ticker()
             for t in tickers:
-                sym = t["symbol"]
-                if not sym.endswith("USDT"):
+                sym = t['symbol']
+                if not sym.endswith('USDT'):
                     continue
                 try:
-                    ch = abs(float(t["priceChangePercent"]))
-                    vol = float(t["quoteVolume"])
-                    high = float(t["highPrice"])
-                    low = float(t["lowPrice"])
-                    op = float(t["openPrice"])
+                    ch = abs(float(t['priceChangePercent']))
+                    vol = float(t['quoteVolume'])
+                    high = float(t['highPrice'])
+                    low = float(t['lowPrice'])
+                    op = float(t['openPrice'])
                     volat = abs(high - low) / op * 100
-                    trades = int(t.get("count", 0))
+                    trades = int(t.get('count', 0))
                     corr_ok = True
 
                     if self.filter_corr_enabled.get() and self.btc_klines_cache:
-                        kl1 = self.client.futures_klines(
-                            symbol=sym, interval="1h", limit=50
-                        )
-                        df1 = pd.DataFrame(
-                            kl1,
-                            columns=[
-                                "t",
-                                "o",
-                                "h",
-                                "l",
-                                "c",
-                                "v",
-                                "close_time",
-                                "quote_vol",
-                                "trades",
-                                "tb_base",
-                                "tb_quote",
-                                "ignore",
-                            ],
-                        )
+                        kl1 = self.client.futures_klines(symbol=sym, interval='1h', limit=50)
+                        df1 = pd.DataFrame(kl1, columns=['t','o','h','l','c','v','close_time','quote_vol','trades','tb_base','tb_quote','ignore'])
                         df2 = pd.DataFrame(self.btc_klines_cache, columns=df1.columns)
-                        series1 = df1["c"].astype(float).pct_change().dropna()
-                        series2 = df2["c"].astype(float).pct_change().dropna()
+                        series1 = df1['c'].astype(float).pct_change().dropna()
+                        series2 = df2['c'].astype(float).pct_change().dropna()
                         corr_coef = series1.corr(series2) * 100
                         corr_ok = corr_coef <= self.filter_corr.get()
 
-                    if (
-                        ch >= self.filter_delta.get()
-                        and vol >= self.parse_kmb(self.filter_volume.get())
-                        and volat >= self.filter_volatility.get()
-                        and trades >= self.parse_kmb(self.filter_trades.get())
-                        and corr_ok
-                    ):
+                    if (ch >= self.filter_delta.get() and
+                        vol >= self.parse_kmb(self.filter_volume.get()) and
+                        volat >= self.filter_volatility.get() and
+                        trades >= self.parse_kmb(self.filter_trades.get()) and
+                        corr_ok):
                         self.found_coins.append(sym)
                 except Exception as e:
                     self.log(f"Search error for {sym}: {e}", "error")
@@ -360,7 +313,7 @@ class TradingApp:
             var = tk.BooleanVar()
             self.checkbox_vars[sym] = var
             cb = tk.Checkbutton(self.sel_frame, text=sym, variable=var)
-            cb.pack(anchor="w")
+            cb.pack(anchor='w')
 
     def on_symbol_select(self):
         sel = self.symbol_listbox.curselection()
@@ -379,26 +332,11 @@ class TradingApp:
             self.info_vars["Trades24h"].set(self.format_kmb_val(data.get("count", 0)))
 
             if self.filter_corr_enabled.get() and self.btc_klines_cache:
-                df1 = pd.DataFrame(
-                    self.client.futures_klines(symbol=sym, interval="1h", limit=50),
-                    columns=[
-                        "t",
-                        "o",
-                        "h",
-                        "l",
-                        "c",
-                        "v",
-                        "close_time",
-                        "quote_vol",
-                        "trades",
-                        "tb_base",
-                        "tb_quote",
-                        "ignore",
-                    ],
-                )
+                df1 = pd.DataFrame(self.client.futures_klines(symbol=sym, interval='1h', limit=50),
+                                    columns=['t','o','h','l','c','v','close_time','quote_vol','trades','tb_base','tb_quote','ignore'])
                 df2 = pd.DataFrame(self.btc_klines_cache, columns=df1.columns)
-                series1 = df1["c"].astype(float).pct_change().dropna()
-                series2 = df2["c"].astype(float).pct_change().dropna()
+                series1 = df1['c'].astype(float).pct_change().dropna()
+                series2 = df2['c'].astype(float).pct_change().dropna()
                 corr_val = series1.corr(series2) * 100
                 self.info_vars["CorrBTC"].set(f"{corr_val:.0f}%")
             else:
@@ -412,110 +350,85 @@ class TradingApp:
             return
         try:
             klines = self.client.futures_klines(
-                symbol=self.current_symbol, interval=self.timeframe.get(), limit=100
-            )
-            df = pd.DataFrame(
-                klines,
-                columns=[
-                    "t",
-                    "o",
-                    "h",
-                    "l",
-                    "c",
-                    "v",
-                    "close_time",
-                    "quote_vol",
-                    "trades",
-                    "tb_base",
-                    "tb_quote",
-                    "ignore",
-                ],
-            )
-            df["t"] = pd.to_datetime(df["t"], unit="ms")
-            df.set_index("t", inplace=True)
-            df_ohlc = df[["o", "h", "l", "c"]].astype(float)
-            df_ohlc.columns = ["Open", "High", "Low", "Close"]
+                symbol=self.current_symbol, interval=self.timeframe.get(), limit=100)
+            df = pd.DataFrame(klines, columns=['t','o','h','l','c','v','close_time','quote_vol','trades','tb_base','tb_quote','ignore'])
+            df['t'] = pd.to_datetime(df['t'], unit='ms')
+            df.set_index('t', inplace=True)
+            df_ohlc = df[['o','h','l','c']].astype(float)
+            df_ohlc.columns = ['Open','High','Low','Close']
             plt.figure(figsize=(10, 6))
             if mpf:
-                mpf.plot(df_ohlc, type="candle", style="charles", volume=False)
+                mpf.plot(df_ohlc, type='candle', style='charles', volume=False)
             else:
-                plt.plot(df.index, df["c"].astype(float))
+                plt.plot(df.index, df['c'].astype(float))
             plt.title(f"{self.current_symbol} {self.timeframe.get()}")
             plt.show()
         except Exception as e:
             self.log(f"Chart error for {self.current_symbol}: {e}", "error")
 
     def start_trading(self):
-        self.bot_status.set("Running")
+        self.bot_status.set('Running')
         self.trading_coins.clear()
         for sym, var in self.checkbox_vars.items():
             if var.get():
-                self.trading_coins[sym] = {"status": "F", "orders": [], "profit": 0.0}
+                self.trading_coins[sym] = {'status':'F','orders':[],'profit':0.0}
         for w in self.sel_frame.winfo_children():
-            w.config(state="disabled")
+            w.config(state='disabled')
         self.log("🛒 Started trading", "success")
 
     def pause_trading(self):
-        self.bot_status.set("Paused")
+        self.bot_status.set('Paused')
         for w in self.sel_frame.winfo_children():
-            w.config(state="normal")
+            w.config(state='normal')
         self.log("⏸️ Paused trading", "info")
 
     def stop_trading(self):
-        self.bot_status.set("Stopped")
+        self.bot_status.set('Stopped')
         for sym in list(self.trading_coins.keys()):
             self.log(f"Closed {sym}", "info")
         self.trading_coins.clear()
         for w in self.sel_frame.winfo_children():
-            w.config(state="normal")
+            w.config(state='normal')
         self.log("🛑 Bot stopped. Positions cleared.", "error")
 
     def save_config(self):
         cfg = {
-            "api_key": self.api_key.get(),
-            "api_secret": self.api_secret.get(),
-            "telegram_token": self.telegram_token.get(),
-            "telegram_chat_id": self.telegram_chat_id.get(),
-            "trade_mode": self.trade_mode.get(),
-            "tp_pct": self.tp_pct.get(),
-            "sl_pct": self.sl_pct.get(),
-            "filter_volume": self.filter_volume.get(),
-            "filter_delta": self.filter_delta.get(),
-            "filter_volatility": self.filter_volatility.get(),
-            "filter_trades": self.filter_trades.get(),
-            "filter_corr": self.filter_corr.get(),
-            "filter_corr_enabled": self.filter_corr_enabled.get(),
-            "timeframe": self.timeframe.get(),
+            'api_key': self.api_key.get(), 'api_secret': self.api_secret.get(),
+            'telegram_token': self.telegram_token.get(), 'telegram_chat_id': self.telegram_chat_id.get(),
+            'trade_mode': self.trade_mode.get(), 'tp_pct': self.tp_pct.get(), 'sl_pct': self.sl_pct.get(),
+            'filter_volume': self.filter_volume.get(), 'filter_delta': self.filter_delta.get(),
+            'filter_volatility': self.filter_volatility.get(), 'filter_trades': self.filter_trades.get(),
+            'filter_corr': self.filter_corr.get(), 'filter_corr_enabled': self.filter_corr_enabled.get(),
+            'timeframe': self.timeframe.get()
         }
-        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(cfg, f, ensure_ascii=False, indent=2)
 
     def load_config(self):
         if os.path.exists(CONFIG_FILE):
             try:
-                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                     cfg = json.load(f)
-                self.api_key.set(cfg.get("api_key", ""))
-                self.api_secret.set(cfg.get("api_secret", ""))
-                self.telegram_token.set(cfg.get("telegram_token", ""))
-                self.telegram_chat_id.set(cfg.get("telegram_chat_id", ""))
-                self.trade_mode.set(cfg.get("trade_mode", "Тестовая торговля"))
-                self.tp_pct.set(cfg.get("tp_pct", 3.0))
-                self.sl_pct.set(cfg.get("sl_pct", 1.0))
-                self.filter_volume.set(cfg.get("filter_volume", "50M"))
-                self.filter_delta.set(cfg.get("filter_delta", 4.0))
-                self.filter_volatility.set(cfg.get("filter_volatility", 2.0))
-                self.filter_trades.set(cfg.get("filter_trades", "1M"))
-                self.filter_corr.set(cfg.get("filter_corr", 70.0))
-                self.filter_corr_enabled.set(cfg.get("filter_corr_enabled", False))
-                self.timeframe.set(cfg.get("timeframe", "5m"))
+                self.api_key.set(cfg.get('api_key',''))
+                self.api_secret.set(cfg.get('api_secret',''))
+                self.telegram_token.set(cfg.get('telegram_token',''))
+                self.telegram_chat_id.set(cfg.get('telegram_chat_id',''))
+                self.trade_mode.set(cfg.get('trade_mode','Тестовая торговля'))
+                self.tp_pct.set(cfg.get('tp_pct',3.0))
+                self.sl_pct.set(cfg.get('sl_pct',1.0))
+                self.filter_volume.set(cfg.get('filter_volume','50M'))
+                self.filter_delta.set(cfg.get('filter_delta',4.0))
+                self.filter_volatility.set(cfg.get('filter_volatility',2.0))
+                self.filter_trades.set(cfg.get('filter_trades','1M'))
+                self.filter_corr.set(cfg.get('filter_corr',70.0))
+                self.filter_corr_enabled.set(cfg.get('filter_corr_enabled',False))
+                self.timeframe.set(cfg.get('timeframe','5m'))
             except Exception as e:
                 self.log(f"[load_config] Ошибка загрузки конфигурации: {e}", "error")
 
     def on_close(self):
         self.save_config()
         self.root.destroy()
-
 
 if __name__ == "__main__":
     root = tk.Tk()

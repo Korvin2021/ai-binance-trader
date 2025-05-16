@@ -1,0 +1,55 @@
+Index: binance_trader.py
+===================================================================
+--- binance_trader.py    (original)
++++ binance_trader.py    (patched)
+@@ class TradingApp:
+     def __init__(self, root):
+@@
+-        threading.Thread(target=self.init_client, daemon=True).start()
++        threading.Thread(target=self.init_client, daemon=True).start()
+@@ def init_client(self):
+-        except Exception as e:
++        except Exception as e:
+             self.log(f"Telegram error: {e}", "error")
++        # Trigger initial BTC cache update
++        self.update_btc_cache()
++
++    def update_btc_cache(self):
++        """Refresh BTCUSDT 1h klines once per hour for correlation."""
++        try:
++            if not self.client:
++                return
++            self.btc_klines_cache = self.client.futures_klines(
++                symbol="BTCUSDT", interval="1h", limit=50
++            )
++            self.log("🔄 BTC cache updated for correlation", "info")
++        except Exception as e:
++            self.log(f"Error updating BTC cache: {e}", "error")
++        finally:
++            self.root.after(3600 * 1000, self.update_btc_cache)
+@@ def search_and_update(self):
+-                    if self.filter_corr_enabled.get() and self.btc_klines_cache:
++                    if self.filter_corr_enabled.get() and self.btc_klines_cache:
+                         kl1 = self.client.futures_klines(symbol=sym, interval="1h", limit=50)
+                         df1 = pd.DataFrame(kl1, columns=[
+                             "open_time","o","h","l","c","v","close_time",
+@@
+                         series1 = df1['c'].astype(float).pct_change().dropna()
+                         series2 = df2['c'].astype(float).pct_change().dropna()
+                         corr_coef = series1.corr(series2) * 100
+-                        corr_ok = corr_coef <= self.filter_corr.get()
++                        corr_ok = corr_coef <= self.filter_corr.get()
+@@ def on_symbol_select(self):
+-            if self.filter_corr_enabled.get() and self.btc_klines_cache:
++            if self.filter_corr_enabled.get() and self.btc_klines_cache:
+                 df1 = pd.DataFrame(self.client.futures_klines(symbol=sym, interval='1h', limit=50),
+                                     columns=[
+                                         "open_time","o","h","l","c","v","close_time",
+@@
+                 series1 = df1['c'].astype(float).pct_change().dropna()
+                 series2 = df2['c'].astype(float).pct_change().dropna()
+                 corr_val = series1.corr(series2) * 100
+-                self.info_vars["CorrBTC"].set(f"{corr_val:.0f}%")
++                self.info_vars["CorrBTC"].set(f"{corr_val:.0f}%")
+             else:
+                 self.info_vars["CorrBTC"].set("N/A")

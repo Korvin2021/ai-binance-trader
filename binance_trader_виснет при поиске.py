@@ -6,6 +6,7 @@ import os
 import pandas as pd
 import requests
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from binance.client import Client
 
 # Optional candlestick plotting
@@ -15,7 +16,6 @@ except ImportError:
     mpf = None
 
 CONFIG_FILE = "trading_config.json"
-CACHE_INTERVAL_MS = 3600 * 1000  # 1 hour in milliseconds
 
 
 class TradingApp:
@@ -80,10 +80,6 @@ class TradingApp:
         self.load_config()
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
-        # Start API client and initial BTC cache
-        threading.Thread(target=self.init_client, daemon=True).start()
-        self.root.after(0, self.update_btc_cache)
-
     def create_widgets(self):
         # Top controls
         top = tk.Frame(self.root)
@@ -136,7 +132,7 @@ class TradingApp:
         tk.Label(mode, text="SL %:").pack(side="left", padx=5)
         tk.Entry(mode, textvariable=self.sl_pct, width=6).pack(side="left")
 
-        # Filters & Search
+        # Filters
         filt = tk.LabelFrame(self.root, text="Filters & Search", padx=5, pady=5)
         filt.pack(fill="x", padx=5, pady=5)
         for text, var, w in [
@@ -193,9 +189,38 @@ class TradingApp:
             tk.Label(summ, text=txt).pack(side="left", padx=5)
             tk.Label(summ, textvariable=var).pack(side="left")
 
-        # Show Chart Button
-        btn_chart = tk.Button(self.root, text="Show Chart", command=self.plot_chart)
-        btn_chart.pack(pady=5)
+        # Chart & Info
+        chartf = tk.LabelFrame(self.root, text="Chart & Info", padx=5, pady=5)
+        chartf.pack(side="left", fill="both", expand=True, padx=5, pady=5)
+        hdr = tk.Frame(chartf)
+        hdr.pack(fill="x")
+        tk.Label(hdr, text="Symbol:").pack(side="left")
+        self.chart_symbol_label = tk.Label(hdr, text="-")
+        self.chart_symbol_label.pack(side="left", padx=5)
+        tk.Label(hdr, text="TF:").pack(side="left")
+        cb_tf = ttk.Combobox(
+            hdr,
+            textvariable=self.timeframe,
+            values=["1m", "5m", "15m", "1h", "4h", "1d"],
+            width=6,
+        )
+        cb_tf.pack(side="left", padx=5)
+        cb_tf.bind("<<ComboboxSelected>>", lambda e: self.plot_chart())
+        infof = tk.Frame(chartf)
+        infof.pack(fill="x", pady=5)
+        for key, lab in [
+            ("Volume24h", "Vol24h:"),
+            ("Change24h", "Δ24h:"),
+            ("Volatility", "Vol%:"),
+            ("Trades24h", "Trades:"),
+            ("CorrBTC", "Corr%:"),
+        ]:
+            tk.Label(infof, text=lab).pack(side="left", padx=5)
+            tk.Label(infof, textvariable=self.info_vars[key]).pack(side="left")
+        self.fig = plt.Figure(figsize=(6, 4), dpi=100)
+        self.ax = self.fig.add_subplot(111)
+        self.canvas = FigureCanvasTkAgg(self.fig, master=chartf)
+        self.canvas.get_tk_widget().pack(fill="both", expand=True)
 
         # Bottom: Positions & Logs
         bottom = tk.Frame(self.root)
@@ -243,22 +268,6 @@ class TradingApp:
         except Exception as e:
             self.log(f"Telegram error: {e}", "error")
 
-    def update_btc_cache(self):
-        """
-        Refresh BTC kline data once per hour and cache for correlation calculations.
-        """
-        try:
-            if not self.client:
-                return
-            self.btc_klines_cache = self.client.futures_klines(
-                symbol="BTCUSDT", interval="1h", limit=50
-            )
-            self.log("🔄 BTC cache updated for correlation", "info")
-        except Exception as e:
-            self.log(f"Error updating BTC cache: {e}", "error")
-        finally:
-            self.root.after(CACHE_INTERVAL_MS, self.update_btc_cache)
-
     def parse_kmb(self, s):
         try:
             return float(s.replace("K", "e3").replace("M", "e6").replace("B", "e9"))
@@ -284,25 +293,26 @@ class TradingApp:
             threading.Thread(target=self.search_and_update, daemon=True).start()
 
     def search_and_update(self):
-        """
-        Search coins and apply filters using cached BTC data for correlation.
-        """
         self.log("🔍 Поиск монет начался", "info")
         self.running_search = True
         self.found_coins.clear()
         for w in self.sel_frame.winfo_children():
             w.destroy()
         self.symbol_listbox.delete(0, "end")
-
+        self.log("🔍 Fetching tickers...", "info")
         try:
             if not self.client:
                 self.init_client()
             tickers = self.client.futures_ticker()
+            if self.filter_corr_enabled.get():
+                self.btc_klines_cache = self.client.futures_klines(
+                    symbol="BTCUSDT", interval="1h", limit=50
+                )
             for t in tickers:
-                sym = t["symbol"]
-                if not sym.endswith("USDT"):
-                    continue
                 try:
+                    sym = t["symbol"]
+                    if not sym.endswith("USDT"):
+                        continue
                     ch = abs(float(t["priceChangePercent"]))
                     vol = float(t["quoteVolume"])
                     high = float(t["highPrice"])
@@ -311,8 +321,7 @@ class TradingApp:
                     volat = abs(high - low) / op * 100
                     trades = int(t.get("count", 0))
                     corr_ok = True
-
-                    if self.filter_corr_enabled.get() and self.btc_klines_cache:
+                    if self.filter_corr_enabled.get():
                         kl1 = self.client.futures_klines(
                             symbol=sym, interval="1h", limit=50
                         )
@@ -333,12 +342,27 @@ class TradingApp:
                                 "ignore",
                             ],
                         )
-                        df2 = pd.DataFrame(self.btc_klines_cache, columns=df1.columns)
+                        df2 = pd.DataFrame(
+                            self.btc_klines_cache,
+                            columns=[
+                                "t",
+                                "o",
+                                "h",
+                                "l",
+                                "c",
+                                "v",
+                                "close_time",
+                                "quote_vol",
+                                "trades",
+                                "tb_base",
+                                "tb_quote",
+                                "ignore",
+                            ],
+                        )
                         series1 = df1["c"].astype(float).pct_change().dropna()
                         series2 = df2["c"].astype(float).pct_change().dropna()
                         corr_coef = series1.corr(series2) * 100
                         corr_ok = corr_coef <= self.filter_corr.get()
-
                     if (
                         ch >= self.filter_delta.get()
                         and vol >= self.parse_kmb(self.filter_volume.get())
@@ -368,6 +392,7 @@ class TradingApp:
             return
         sym = self.symbol_listbox.get(sel[0])
         self.current_symbol = sym
+        self.chart_symbol_label.config(text=sym)
         try:
             data = self.client.futures_ticker(symbol=sym)
             self.info_vars["Volume24h"].set(self.format_kmb_val(data["quoteVolume"]))
@@ -377,10 +402,13 @@ class TradingApp:
             op = float(data["openPrice"])
             self.info_vars["Volatility"].set(f"{abs(high-low)/op*100:.2f}%")
             self.info_vars["Trades24h"].set(self.format_kmb_val(data.get("count", 0)))
-
-            if self.filter_corr_enabled.get() and self.btc_klines_cache:
+            if self.filter_corr_enabled.get():
+                kl1 = self.client.futures_klines(symbol=sym, interval="1h", limit=50)
+                kl2 = self.client.futures_klines(
+                    symbol="BTCUSDT", interval="1h", limit=50
+                )
                 df1 = pd.DataFrame(
-                    self.client.futures_klines(symbol=sym, interval="1h", limit=50),
+                    kl1,
                     columns=[
                         "t",
                         "o",
@@ -396,18 +424,86 @@ class TradingApp:
                         "ignore",
                     ],
                 )
-                df2 = pd.DataFrame(self.btc_klines_cache, columns=df1.columns)
+                df2 = pd.DataFrame(
+                    kl2,
+                    columns=[
+                        "t",
+                        "o",
+                        "h",
+                        "l",
+                        "c",
+                        "v",
+                        "close_time",
+                        "quote_vol",
+                        "trades",
+                        "tb_base",
+                        "tb_quote",
+                        "ignore",
+                    ],
+                )
                 series1 = df1["c"].astype(float).pct_change().dropna()
                 series2 = df2["c"].astype(float).pct_change().dropna()
                 corr_val = series1.corr(series2) * 100
                 self.info_vars["CorrBTC"].set(f"{corr_val:.0f}%")
             else:
                 self.info_vars["CorrBTC"].set("N/A")
+            self.plot_chart()
         except Exception as e:
             self.log(f"Error loading symbol info for {sym}: {e}", "error")
 
+    def start_trading(self):
+        self.bot_status.set("Running")
+        self.trading_coins.clear()
+        for sym, var in self.checkbox_vars.items():
+            if var.get():
+                self.trading_coins[sym] = {"status": "F", "orders": [], "profit": 0.0}
+        for w in self.sel_frame.winfo_children():
+            w.config(state="disabled")
+        self.update_positions_panel()
+        self.log("🛒 Started trading", "success")
+
+    def pause_trading(self):
+        self.bot_status.set("Paused")
+        for w in self.sel_frame.winfo_children():
+            w.config(state="normal")
+        self.log("⏸️ Paused trading", "info")
+
+    def stop_trading(self):
+        self.bot_status.set("Stopped")
+        self.log("🛑 Bot stopped. Closing all positions...", "error")
+        for sym in list(self.trading_coins.keys()):
+            self.close_coin(sym)
+        self.trading_coins.clear()
+        for w in self.sel_frame.winfo_children():
+            w.config(state="normal")
+        self.update_positions_panel()
+
+    def update_positions_panel(self):
+        self.online_trades.set(len(self.trading_coins))
+        for w in self.pos_frame.winfo_children():
+            w.destroy()
+        for sym, info in self.trading_coins.items():
+            row = tk.Frame(self.pos_frame)
+            row.pack(fill="x", pady=2)
+            status = info.get("status", "F")
+            tk.Label(row, text=f"{sym} ({status})", width=15, anchor="w").pack(
+                side="left"
+            )
+            amt = sum(o.get("lot", 0) for o in info.get("orders", []))
+            tk.Label(row, text=f"Amt:${amt:.2f}", width=12).pack(side="left")
+            profit = info.get("profit", 0.0) if status == "A" else 0.0
+            tk.Label(row, text=f"Profit:${profit:.2f}", width=12).pack(side="left")
+            tk.Button(row, text="Close", command=lambda s=sym: self.close_coin(s)).pack(
+                side="right"
+            )
+
+    def close_coin(self, sym):
+        if sym in self.trading_coins:
+            del self.trading_coins[sym]
+            self.update_positions_panel()
+            self.log(f"Closed {sym}", "info")
+
     def plot_chart(self):
-        # Display chart in separate window
         if not self.current_symbol:
             return
         try:
@@ -433,42 +529,30 @@ class TradingApp:
             )
             df["t"] = pd.to_datetime(df["t"], unit="ms")
             df.set_index("t", inplace=True)
+            # Prepare OHLC DataFrame for plotting
             df_ohlc = df[["o", "h", "l", "c"]].astype(float)
             df_ohlc.columns = ["Open", "High", "Low", "Close"]
-            plt.figure(figsize=(10, 6))
+            self.ax.clear()
             if mpf:
-                mpf.plot(df_ohlc, type="candle", style="charles", volume=False)
+                mpf.plot(
+                    df_ohlc,
+                    type="candle",
+                    ax=self.ax,
+                    style="charles",
+                    volume=False,
+                    show_nontrading=True,
+                )
             else:
-                plt.plot(df.index, df["c"].astype(float))
-            plt.title(f"{self.current_symbol} {self.timeframe.get()}")
-            plt.show()
+                self.ax.plot(df.index, df["c"].astype(float))
+            if self.current_symbol in self.trading_coins:
+                for o in self.trading_coins[self.current_symbol]["orders"]:
+                    m = "^" if o.get("type") in ["AOB", "LM"] else "v"
+                    self.ax.scatter(df.index[-1], o.get("price"), marker=m)
+            self.canvas.draw()
         except Exception as e:
             self.log(f"Chart error for {self.current_symbol}: {e}", "error")
-
-    def start_trading(self):
-        self.bot_status.set("Running")
-        self.trading_coins.clear()
-        for sym, var in self.checkbox_vars.items():
-            if var.get():
-                self.trading_coins[sym] = {"status": "F", "orders": [], "profit": 0.0}
-        for w in self.sel_frame.winfo_children():
-            w.config(state="disabled")
-        self.log("🛒 Started trading", "success")
-
-    def pause_trading(self):
-        self.bot_status.set("Paused")
-        for w in self.sel_frame.winfo_children():
-            w.config(state="normal")
-        self.log("⏸️ Paused trading", "info")
-
-    def stop_trading(self):
-        self.bot_status.set("Stopped")
-        for sym in list(self.trading_coins.keys()):
-            self.log(f"Closed {sym}", "info")
-        self.trading_coins.clear()
-        for w in self.sel_frame.winfo_children():
-            w.config(state="normal")
-        self.log("🛑 Bot stopped. Positions cleared.", "error")
+        finally:
+            self.root.after(5000, self.plot_chart)
 
     def save_config(self):
         cfg = {
