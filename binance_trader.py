@@ -18,6 +18,8 @@ except ImportError:
 
 CONFIG_FILE = "trading_config.json"
 
+
+
 class TradingApp:
     def __init__(self, root):
         self.root = root
@@ -208,6 +210,8 @@ class TradingApp:
         try:
             token = self.telegram_token.get(); cid = self.telegram_chat_id.get()
             requests.get(f"https://api.telegram.org/bot{token}/sendMessage?chat_id={cid}&text=Bot+Started")
+        except Exception as e:
+            self.log(f'Error: {e}', 'error')
             self.log("✅ Telegram test sent", "success")
 
             self.log(f"Telegram error: {e}", "error")
@@ -215,14 +219,18 @@ class TradingApp:
     def parse_kmb(self, s):
         try:
             return float(s.replace('K','e3').replace('M','e6').replace('B','e9'))
-        except:
+        except Exception as e:
+            self.log(f"[parse_kmb] Некорректное значение: {s} → {e}", "error")
             return 0.0
+        
     def format_kmb_val(self, v):
         try:
             v = float(v)
             if v >= 1e9: return f"{v/1e9:.2f}B"
             if v >= 1e6: return f"{v/1e6:.2f}M"
             if v >= 1e3: return f"{v/1e3:.2f}K"
+        except Exception as e:
+            self.log(f'Error: {e}', 'error')
             return str(round(v))
         except:
             return str(v)
@@ -255,11 +263,12 @@ class TradingApp:
                         df1 = pd.DataFrame(kl1, columns=["t","o","h","l","c","v",*range(6)])
                         df2 = pd.DataFrame(kl2, columns=["t","o","h","l","c","v",*range(6)])
                         corr_coef = df1['c'].astype(float).corr(df2['c'].astype(float))*100
-                        self.log(f"Corr_coef% для : {corr_coef:.0f}%")
-                        self.log(f"Filtr% для : {float(self.filter_corr.get()):.0f}%")
-                        corr_ok = corr_coef <= float(self.filter_corr.get())
-                        #self.log(f"{sym} | Corr%: {corr_coef:.0f} <= {float(self.filter_corr.get())} → {'✅ OK' if corr_ok else '❌ No'}")
-                if (ch >= self.filter_delta.get() and
+        except Exception as e:
+            self.log(f'Error: {e}', 'error')
+            self.log(f"Corr_coef% для : {corr_coef:.0f}%")
+            self.log(f"Filtr% для : {float(self.filter_corr.get()):.0f}%")
+            corr_ok = corr_coef <= float(self.filter_corr.get())
+            if (ch >= self.filter_delta.get() and
                     vol >= self.parse_kmb(self.filter_volume.get()) and
                     volat >= self.filter_volatility.get() and
                     trades >= self.parse_kmb(self.filter_trades.get()) and
@@ -289,6 +298,8 @@ class TradingApp:
         self.chart_symbol_label.config(text=sym)
         try:
             data = self.client.futures_ticker(symbol=sym)
+        except Exception as e:
+            self.log(f'Error: {e}', 'error')
             self.info_vars["Volume24h"].set(self.format_kmb_val(data["quoteVolume"]))
             self.info_vars["Change24h"].set(f"{float(data['priceChangePercent']):.2f}%")
             high, low, op = float(data["highPrice"]), float(data["lowPrice"]), float(data["openPrice"])
@@ -355,6 +366,8 @@ class TradingApp:
             klines = self.client.futures_klines(symbol=self.current_symbol, interval=self.timeframe.get(), limit=100)
             df = pd.DataFrame(klines, columns=['t','o','h','l','c','v',*range(6)])
             df['t'] = pd.to_datetime(df['t'], unit='ms'); df.set_index('t', inplace=True); df=df.astype(float)
+        except Exception as e:
+            self.log(f'Error: {e}', 'error')
             self.ax.clear()
             if mpf:
                 mpf.plot(df, type='candle', ax=self.ax, style='charles', volume=False)
@@ -388,10 +401,13 @@ class TradingApp:
             try:
                 with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                     cfg = json.load(f)
-                self.api_key.set(cfg.get('api_key','')); self.api_secret.set(cfg.get('api_secret',''))
-                self.telegram_token.set(cfg.get('telegram_token','')); self.telegram_chat_id.set(cfg.get('telegram_chat_id',''))
+                self.api_key.set(cfg.get('api_key',''))
+                self.api_secret.set(cfg.get('api_secret',''))
+                self.telegram_token.set(cfg.get('telegram_token',''))
+                self.telegram_chat_id.set(cfg.get('telegram_chat_id',''))
                 self.trade_mode.set(cfg.get('trade_mode','Тестовая торговля'))
-                self.tp_pct.set(cfg.get('tp_pct',3.0)); self.sl_pct.set(cfg.get('sl_pct',1.0))
+                self.tp_pct.set(cfg.get('tp_pct',3.0))
+                self.sl_pct.set(cfg.get('sl_pct',1.0))
                 self.filter_volume.set(cfg.get('filter_volume','50M'))
                 self.filter_delta.set(cfg.get('filter_delta',4.0))
                 self.filter_volatility.set(cfg.get('filter_volatility',2.0))
@@ -399,8 +415,8 @@ class TradingApp:
                 self.filter_corr.set(cfg.get('filter_corr',70.0))
                 self.filter_corr_enabled.set(cfg.get('filter_corr_enabled',False))
                 self.timeframe.set(cfg.get('timeframe','5m'))
-
-                self.log(f"Config load error: {e}", "error")
+            except Exception as e:
+                self.log(f"[load_config] Ошибка загрузки конфигурации: {e}", "error")
 
     def on_close(self):
         self.save_config()
