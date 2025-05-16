@@ -195,8 +195,8 @@ class TradingApp:
         self.pos_canvas.configure(yscrollcommand=vsb2.set); vsb2.pack(side='right', fill='y'); self.pos_canvas.pack(side='left', fill='both', expand=True)
         self.pos_canvas.create_window((0,0), window=self.pos_frame, anchor='nw')
         self.pos_frame.bind("<Configure>", lambda e: self.pos_canvas.configure(scrollregion=self.pos_canvas.bbox("all")))
-        logf = tk.LabelFrame(bottom, text="Logs", padx=5, pady=5); logf.pack(fill='both', expand=True)
         self.log_text = scrolledtext.ScrolledText(logf, height=10); self.log_text.pack(fill='both', expand=True)
+        logf = tk.LabelFrame(bottom, text="Logs", padx=5, pady=5); logf.pack(fill='both', expand=True)
         for tag, color in [("info", "black"), ("success", "green"), ("error", "red")]:
             self.log_text.tag_configure(tag, foreground=color)
 
@@ -210,8 +210,8 @@ class TradingApp:
         try:
             token = self.telegram_token.get(); cid = self.telegram_chat_id.get()
             requests.get(f"https://api.telegram.org/bot{token}/sendMessage?chat_id={cid}&text=Bot+Started")
-        except Exception as e:
             self.log(f'Error: {e}', 'error')
+        except Exception as e:
             self.log("✅ Telegram test sent", "success")
 
             self.log(f"Telegram error: {e}", "error")
@@ -219,8 +219,8 @@ class TradingApp:
     def parse_kmb(self, s):
         try:
             return float(s.replace('K','e3').replace('M','e6').replace('B','e9'))
-        except Exception as e:
             self.log(f"[parse_kmb] Некорректное значение: {s} → {e}", "error")
+        except Exception as e:
             return 0.0
         
     def format_kmb_val(self, v):
@@ -229,8 +229,8 @@ class TradingApp:
             if v >= 1e9: return f"{v/1e9:.2f}B"
             if v >= 1e6: return f"{v/1e6:.2f}M"
             if v >= 1e3: return f"{v/1e3:.2f}K"
-        except Exception as e:
             self.log(f'Error: {e}', 'error')
+        except Exception as e:
             return str(round(v))
         except:
             return str(v)
@@ -263,8 +263,8 @@ class TradingApp:
                         df1 = pd.DataFrame(kl1, columns=["t","o","h","l","c","v",*range(6)])
                         df2 = pd.DataFrame(kl2, columns=["t","o","h","l","c","v",*range(6)])
                         corr_coef = df1['c'].astype(float).corr(df2['c'].astype(float))*100
-        except Exception as e:
             self.log(f'Error: {e}', 'error')
+        except Exception as e:
             self.log(f"Corr_coef% для : {corr_coef:.0f}%")
             self.log(f"Filtr% для : {float(self.filter_corr.get()):.0f}%")
             corr_ok = corr_coef <= float(self.filter_corr.get())
@@ -298,8 +298,8 @@ class TradingApp:
         self.chart_symbol_label.config(text=sym)
         try:
             data = self.client.futures_ticker(symbol=sym)
-        except Exception as e:
             self.log(f'Error: {e}', 'error')
+        except Exception as e:
             self.info_vars["Volume24h"].set(self.format_kmb_val(data["quoteVolume"]))
             self.info_vars["Change24h"].set(f"{float(data['priceChangePercent']):.2f}%")
             high, low, op = float(data["highPrice"]), float(data["lowPrice"]), float(data["openPrice"])
@@ -366,8 +366,8 @@ class TradingApp:
             klines = self.client.futures_klines(symbol=self.current_symbol, interval=self.timeframe.get(), limit=100)
             df = pd.DataFrame(klines, columns=['t','o','h','l','c','v',*range(6)])
             df['t'] = pd.to_datetime(df['t'], unit='ms'); df.set_index('t', inplace=True); df=df.astype(float)
-        except Exception as e:
             self.log(f'Error: {e}', 'error')
+        except Exception as e:
             self.ax.clear()
             if mpf:
                 mpf.plot(df, type='candle', ax=self.ax, style='charles', volume=False)
@@ -417,7 +417,7 @@ class TradingApp:
                 self.timeframe.set(cfg.get('timeframe','5m'))
             except Exception as e:
                 self.log(f"[load_config] Ошибка загрузки конфигурации: {e}", "error")
-
+                
     def on_close(self):
         self.save_config()
         self.root.destroy()
